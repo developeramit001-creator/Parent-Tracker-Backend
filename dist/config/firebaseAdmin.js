@@ -4,9 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const firebase_admin_1 = __importDefault(require("firebase-admin"));
-if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT is missing");
-}
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 serviceAccount.private_key =
     serviceAccount.private_key.replace(/\\n/g, "\n");
