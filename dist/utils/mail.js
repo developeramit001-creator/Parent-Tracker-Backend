@@ -14,8 +14,8 @@ const EMAIL_PASS = process.env.SMTP_PASS || '';
 exports.mailTransporter = nodemailer_1.default.createTransport({
     // service: 'gmail', // Gmail SMTP
     host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
     auth: {
         user: EMAIL_USER, // Gmail address
         pass: EMAIL_PASS, // Gmail App password (NOT your login password)
