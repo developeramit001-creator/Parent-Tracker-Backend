@@ -54,6 +54,7 @@ router.post('/send-otp', async (req, res) => {
     res.status(200).json({
       status: true,
       message: 'OTP sent successfully',
+      otp: otp
     });
   } catch (err) {
     console.error('SEND OTP ERROR:', err);
@@ -71,6 +72,7 @@ interface VerifyOtpResponse {
   refreshToken?: string;
   AuthenticationToken?: string;
   user?: any;
+  otp?: string;
 }
 router.post('/verify-otp', async (req, res) => {
   try {
@@ -126,6 +128,7 @@ router.post('/verify-otp', async (req, res) => {
       response.refreshToken = refreshToken;
       response.user = exists;
 
+
     }
 
 
@@ -168,7 +171,7 @@ router.post('/complete-profile',
       });
 
 
-
+      console.log(req.file, "req.file")
 
 
 

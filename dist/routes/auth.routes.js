@@ -45,6 +45,7 @@ router.post('/send-otp', async (req, res) => {
         res.status(200).json({
             status: true,
             message: 'OTP sent successfully',
+            otp: otp
         });
     }
     catch (err) {
@@ -126,6 +127,7 @@ async (req, res) => {
             role: zod_1.z.enum(['parent', 'child',]),
             phone: zod_1.z.string().optional(),
         });
+        console.log(req.file, "req.file");
         const parsed = schema.safeParse(req.body);
         if (!parsed.success)
             return res.status(400).json({
