@@ -13,3 +13,16 @@ if (!firebase_admin_1.default.apps.length) {
     });
 }
 exports.default = firebase_admin_1.default;
+//
+// import admin from "firebase-admin";
+// import path from "path";
+// const serviceAccountPath = path.join(
+//     process.cwd(),
+//     "firebase-admin.json"
+// );
+// if (!admin.apps.length) {
+//     admin.initializeApp({
+//         credential: admin.credential.cert(serviceAccountPath),
+//     });
+// }
+// export default admin;

@@ -9,7 +9,10 @@ const EMAIL_PASS = process.env.SMTP_PASS || '';
 
 // Create reusable transporter
 export const mailTransporter = nodemailer.createTransport({
-  service: 'gmail', // Gmail SMTP
+  // service: 'gmail', // Gmail SMTP
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
   auth: {
     user: EMAIL_USER, // Gmail address
     pass: EMAIL_PASS, // Gmail App password (NOT your login password)
