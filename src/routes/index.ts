@@ -7,12 +7,13 @@ import { verifyUser } from '../middlewares/authMiddleware.js';
 import user from '../models/user.js';
 import trackingRoutes from "./tracking.routes.js";
 import mongoose from "mongoose";
+import addsafezone from './addsafezone.routes.js';
 const router = Router();
 router.use('/auth/v1', authRoutes);
 router.use('/connection/v1', connection);
 router.use('/notification/v1', notification);
 router.use('/tracking/v1', trackingRoutes);
-
+router.use('/safe-zone/v1', addsafezone);
 //  Genrate FireBase Token  ----- start
 // "api//tracking/v1/child/update-live",
 

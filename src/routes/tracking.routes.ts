@@ -35,7 +35,7 @@ router.post(
     async (req: any, res: Response) => {
 
         try {
-            console.log("child-update-live", '1')
+            console.log(req.body, "req.body ======================")
 
             const childId = req.user._id as string;
             const { lat, lng, speed, heading, batteryLevel } =
@@ -43,7 +43,7 @@ router.post(
 
 
 
-            console.log(req.body, "req.body")
+
 
             // ✅ Validate lat/lng
             if (typeof lat !== "number" || typeof lng !== "number") {
@@ -89,7 +89,7 @@ router.post(
             child.lastLocationAt = new Date();
 
             await child.save();
-
+            // console.log(child, "child Check child detial send to backend")
             /**
              * ✅ Emit to parent dashboard (real-time)
              * Room: parent:<parentId>
