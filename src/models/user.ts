@@ -44,6 +44,8 @@ export interface IUser extends Document {
 
   // ✅ Admin
   isBlocked?: boolean;
+  gpsEnabled?: boolean;
+  gpsEvent?: string;
 }
 
 const UserSchema = new Schema<IUser>(
@@ -101,13 +103,14 @@ const UserSchema = new Schema<IUser>(
       enum: ["STOPPED", "MOVING", "RUNNING"],
 
     },
-
+    gpsEnabled: { type: Boolean },
     lastLocationAt: { type: Date },
 
     // ✅ Block + FCM
     isBlocked: { type: Boolean, default: false },
 
     fcmTokens: { type: [String], default: [] },
+    gpsEvent: { type: String }
   },
   { timestamps: true }
 );

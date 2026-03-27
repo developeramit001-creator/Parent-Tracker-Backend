@@ -5,7 +5,7 @@
 // // Firebase Admin SDK import
 // // Iska use backend se push notification bhejne ke liye hota hai
 import admin from "../config/firebaseAdmin";
-
+import User from "../models/user"; // 👈 add this
 // /**
 //  * 📌 sendPush
 //  * --------------------------------------------------
@@ -105,7 +105,7 @@ import admin from "../config/firebaseAdmin";
 
 
 //   // 📊 Success count log (debug / monitoring ke liye)
- 
+
 // }
 
 
@@ -125,14 +125,6 @@ export async function sendPush(
       priority: "high" as const,
     },
 
-    // ✅ ONLY DATA (important)
-    // data: {
-    //   ...data,
-    //   title,
-    //   body,
-    // },
-
-
     data: {
       ...Object.fromEntries(
         Object.entries(data).map(([k, v]) => [k, String(v)])
@@ -142,20 +134,38 @@ export async function sendPush(
     },
   };
 
-  // const response = await admin.messaging().sendEachForMulticast(message);
-  
-
   const response = await admin.messaging().sendEachForMulticast(message);
 
   console.log("✅ success:", response.successCount);
   console.log("❌ fail:", response.failureCount);
 
+  // 🧠 collect invalid tokens
+  const tokensToRemove: string[] = [];
+
   response.responses.forEach((r, i) => {
     if (!r.success) {
+      const errorCode = r.error?.code;
+
       console.log("❌ token failed:", tokens[i]);
       console.log("❌ error:", r.error);
+
+      // ✅ IMPORTANT: invalid token detect
+      if (
+        errorCode === "messaging/registration-token-not-registered" ||
+        errorCode === "messaging/invalid-registration-token"
+      ) {
+        tokensToRemove.push(tokens[i]);
+      }
     }
   });
 
+  // 🧹 DB cleanup (VERY IMPORTANT)
+  if (tokensToRemove.length) {
+    console.log("🧹 removing invalid tokens:", tokensToRemove);
 
+    await User.updateMany(
+      { fcmTokens: { $in: tokensToRemove } },
+      { $pull: { fcmTokens: { $in: tokensToRemove } } }
+    );
+  }
 }
