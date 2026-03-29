@@ -3,26 +3,37 @@
 import mongoose, { Schema, Document, Types } from "mongoose";
 
 export interface ISafeZone extends Document {
-    userId: Types.ObjectId;
-
+    ParentId: Types.ObjectId;
+    childId: Types.ObjectId; // 👈 IMPORTANT
     name: string;
-
     center: {
         lat: number;
         lng: number;
     };
-
     radius: number; // meters
+    Zonecolor: string; // 👈 NEW (for UI)
 }
 
 const SafeZoneSchema = new Schema<ISafeZone>(
     {
-        userId: {
+        ParentId: {
             type: Schema.Types.ObjectId,
             ref: "User",
             required: true,
             index: true
         },
+
+        childId: {
+            type: Schema.Types.ObjectId,
+            ref: "Child",
+            required: true,
+            index: true
+        },
+        Zonecolor: {
+            type: String,
+            default: "#2563EB"
+        },
+
 
         name: { type: String, required: true },
 

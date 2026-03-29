@@ -8,6 +8,7 @@ import user from '../models/user.js';
 import trackingRoutes from "./tracking.routes.js";
 import mongoose from "mongoose";
 import addsafezone from './addsafezone.routes.js';
+
 const router = Router();
 router.use('/auth/v1', authRoutes);
 router.use('/connection/v1', connection);
@@ -113,6 +114,110 @@ router.get(
         }
     }
 );
+
+
+router.get(
+    "/parent/children/:childId/v1",
+    verifyUser("parent"),
+    async (req: any, res: Response) => {
+        try {
+            const parentId = new mongoose.Types.ObjectId(req.user._id);
+            const childId = new mongoose.Types.ObjectId(req.params.childId);
+
+            const result = await user.aggregate([
+                // 1️⃣ Match parent
+                {
+                    $match: {
+                        _id: parentId,
+                        role: "parent",
+                    },
+                },
+
+                // 2️⃣ Lookup only that specific child
+                {
+                    $lookup: {
+                        from: "users",
+                        let: { childrenIds: "$children" },
+                        pipeline: [
+                            {
+                                $match: {
+                                    $expr: {
+                                        $and: [
+                                            { $in: ["$_id", "$$childrenIds"] }, // ✅ child belongs to parent
+                                            { $eq: ["$_id", childId] }, // ✅ specific child
+                                        ],
+                                    },
+                                },
+                            },
+                            {
+                                $project: {
+                                    _id: 1,
+                                    name: 1,
+                                    email: 1,
+                                    avatarUrl: 1,
+
+                                    coordinates: 1,
+                                    batteryLevel: 1,
+                                    speed: 1,
+                                    heading: 1,
+
+                                    isMoving: 1,
+                                    movementStatus: 1,
+                                    gpsEnabled: 1,
+                                    gpsEvent: 1,
+                                    lastLocationAt: 1,
+
+                                    createdAt: 1,
+                                },
+                            },
+                        ],
+                        as: "child",
+                    },
+                },
+
+                // 3️⃣ Convert array → object
+                {
+                    $unwind: {
+                        path: "$child",
+                        preserveNullAndEmptyArrays: true,
+                    },
+                },
+
+                // 4️⃣ Final shape
+                {
+                    $project: {
+                        _id: 0,
+                        parentId: "$_id",
+                        child: "$child",
+                    },
+                },
+            ]);
+
+            const data = result?.[0];
+
+            // ❌ Child not found or not belongs to parent
+            if (!data || !data.child) {
+                return res.status(404).json({
+                    success: false,
+                    message: "Child not found",
+                });
+            }
+
+            return res.status(200).json({
+                success: true,
+                parentId: data.parentId,
+                child: data.child,
+            });
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json({
+                success: false,
+                message: "Server error",
+            });
+        }
+    }
+);
+// get Single Child
 
 
 
