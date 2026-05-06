@@ -43,13 +43,15 @@ export function distanceMeters(
 export function getMovementStatus({
     prev,
     next,
+    lastStatus, // 👈 ADD THIS
 }: {
     prev?: LatLngPoint;
     next?: LatLngPoint;
+    lastStatus?: MovementStatus;
 }): { movementStatus: MovementStatus; isMoving: boolean; moved: number } {
+
     let moved = 0;
 
-    // ✅ Note: 0 lat/lng is valid so use typeof check
     if (
         typeof prev?.lat === "number" &&
         typeof prev?.lng === "number" &&
@@ -61,9 +63,21 @@ export function getMovementStatus({
 
     const speed = Number(next?.speed || 0);
 
-    if (speed > 1.5) return { movementStatus: "RUNNING", isMoving: true, moved };
-    if (moved >= 12 || speed > 0.3)
+    // ✅ RUNNING
+    if (speed > 1.5) {
+        return { movementStatus: "RUNNING", isMoving: true, moved };
+    }
+
+    // ✅ MOVING (more strict)
+    if (moved >= 20 || speed > 0.5) {
         return { movementStatus: "MOVING", isMoving: true, moved };
+    }
+
+    // ✅ STOPPING smoothing (IMPORTANT)
+    if (lastStatus === "MOVING" && moved < 5 && speed < 0.2) {
+        // 👈 sudden stop ignore karo
+        return { movementStatus: "MOVING", isMoving: true, moved };
+    }
 
     return { movementStatus: "STOPPED", isMoving: false, moved };
 }

@@ -7,6 +7,7 @@ exports.sendPush = sendPush;
 // // Firebase Admin SDK import
 // // Iska use backend se push notification bhejne ke liye hota hai
 const firebaseAdmin_1 = __importDefault(require("../config/firebaseAdmin"));
+const user_1 = __importDefault(require("../models/user")); // 👈 add this
 // /**
 //  * 📌 sendPush
 //  * --------------------------------------------------
@@ -103,26 +104,32 @@ async function sendPush(tokens, title, body, data = {}) {
         android: {
             priority: "high",
         },
-        // ✅ ONLY DATA (important)
-        // data: {
-        //   ...data,
-        //   title,
-        //   body,
-        // },
         data: {
             ...Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
             title,
             body,
         },
     };
-    // const response = await admin.messaging().sendEachForMulticast(message);
     const response = await firebaseAdmin_1.default.messaging().sendEachForMulticast(message);
     console.log("✅ success:", response.successCount);
     console.log("❌ fail:", response.failureCount);
+    // 🧠 collect invalid tokens
+    const tokensToRemove = [];
     response.responses.forEach((r, i) => {
         if (!r.success) {
+            const errorCode = r.error?.code;
             console.log("❌ token failed:", tokens[i]);
             console.log("❌ error:", r.error);
+            // ✅ IMPORTANT: invalid token detect
+            if (errorCode === "messaging/registration-token-not-registered" ||
+                errorCode === "messaging/invalid-registration-token") {
+                tokensToRemove.push(tokens[i]);
+            }
         }
     });
+    // 🧹 DB cleanup (VERY IMPORTANT)
+    if (tokensToRemove.length) {
+        console.log("🧹 removing invalid tokens:", tokensToRemove);
+        await user_1.default.updateMany({ fcmTokens: { $in: tokensToRemove } }, { $pull: { fcmTokens: { $in: tokensToRemove } } });
+    }
 }

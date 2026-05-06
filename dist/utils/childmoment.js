@@ -25,9 +25,9 @@ function distanceMeters(lat1, lng1, lat2, lng2) {
  * - MOVING if moved >= 12m OR speed > 0.3
  * - STOPPED otherwise
  */
-function getMovementStatus({ prev, next, }) {
+function getMovementStatus({ prev, next, lastStatus, // 👈 ADD THIS
+ }) {
     let moved = 0;
-    // ✅ Note: 0 lat/lng is valid so use typeof check
     if (typeof prev?.lat === "number" &&
         typeof prev?.lng === "number" &&
         typeof next?.lat === "number" &&
@@ -35,9 +35,18 @@ function getMovementStatus({ prev, next, }) {
         moved = distanceMeters(prev.lat, prev.lng, next.lat, next.lng);
     }
     const speed = Number(next?.speed || 0);
-    if (speed > 1.5)
+    // ✅ RUNNING
+    if (speed > 1.5) {
         return { movementStatus: "RUNNING", isMoving: true, moved };
-    if (moved >= 12 || speed > 0.3)
+    }
+    // ✅ MOVING (more strict)
+    if (moved >= 20 || speed > 0.5) {
         return { movementStatus: "MOVING", isMoving: true, moved };
+    }
+    // ✅ STOPPING smoothing (IMPORTANT)
+    if (lastStatus === "MOVING" && moved < 5 && speed < 0.2) {
+        // 👈 sudden stop ignore karo
+        return { movementStatus: "MOVING", isMoving: true, moved };
+    }
     return { movementStatus: "STOPPED", isMoving: false, moved };
 }

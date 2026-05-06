@@ -36,51 +36,54 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // src/models/User.ts
 const mongoose_1 = __importStar(require("mongoose"));
 const UserSchema = new mongoose_1.Schema({
-    // ✅ Basic info
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
-    phone: { type: String },
-    role: {
-        type: String,
-        enum: ["parent", "child"],
-        required: true,
-    },
-    gender: { type: String },
-    avatarUrl: { type: String },
-    // ✅ Parent fields
-    inviteCode: {
-        type: String,
-        unique: true,
-        sparse: true, // allow null/undefined
-    },
-    children: [
-        {
-            type: mongoose_1.Schema.Types.ObjectId,
-            ref: "User",
-        },
-    ],
-    // ✅ Child fields
+    role: { type: String, enum: ["parent", "child"], required: true },
     parentId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "User",
         index: true,
     },
-    // ✅ Live tracking fields (child)
-    coordinates: {
+    children: [{ type: mongoose_1.Schema.Types.ObjectId, ref: "User" }],
+    // ================================
+    // 🟢 CHILD SUMMARY
+    // ================================
+    lastActiveDeviceId: { type: String },
+    lastLocation: {
         lat: { type: Number },
         lng: { type: Number },
     },
-    speed: { type: Number, }, // m/s
-    heading: { type: Number, }, // degrees
-    batteryLevel: { type: Number, }, // 0-100
-    isMoving: { type: Boolean },
-    movementStatus: {
-        type: String,
-        enum: ["STOPPED", "MOVING", "RUNNING"],
-    },
-    lastLocationAt: { type: Date },
-    // ✅ Block + FCM
-    isBlocked: { type: Boolean, default: false },
+    // ================================
+    // 📱 DEVICES
+    // ================================
+    devices: [
+        {
+            deviceId: { type: String },
+            deviceName: { type: String },
+            deviceType: { type: String },
+            platform: { type: String },
+            isOnline: { type: Boolean, default: true }, // update only login and logout
+            isTracking: { type: Boolean, default: false },
+            lastSeen: { type: Date, default: Date.now }, //update only logout and login
+            lastLocationAt: { type: Date },
+            coordinates: {
+                lat: { type: Number },
+                lng: { type: Number },
+            },
+            speed: { type: Number },
+            heading: { type: Number },
+            movementStatus: {
+                type: String,
+                enum: ["STOPPED", "MOVING", "RUNNING"],
+            },
+            gpsEnabled: { type: Boolean, default: false },
+            internetEnabled: { type: Boolean, default: false },
+            batteryLevel: { type: Number },
+            gpsEvent: { type: String },
+            trackingStatus: { type: String },
+        },
+    ],
     fcmTokens: { type: [String], default: [] },
+    isBlocked: { type: Boolean, default: false },
 }, { timestamps: true });
 exports.default = mongoose_1.default.model("User", UserSchema);

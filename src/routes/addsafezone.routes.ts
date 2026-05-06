@@ -54,12 +54,15 @@ router.get("/get/:childId", verifyUser("parent"), async (req, res) => {
 //  edit safe zone
 
 router.put("/:id", verifyUser("parent"), async (req, res) => {
+
+
     const { id } = req.params;
-    const { name, radius, color } = req.body;
+    const { name, radius, lat, lng } = req.body;
+    console.log(req.body, "req.body")
 
     const updated = await SafeZone.findByIdAndUpdate(
         id,
-        { name, radius, color },
+        { name, radius, center: { lat, lng } },
         { new: true }
     );
 

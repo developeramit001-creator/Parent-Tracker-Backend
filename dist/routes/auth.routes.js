@@ -58,6 +58,10 @@ router.post('/verify-otp', async (req, res) => {
         const schema = zod_1.z.object({
             email: zod_1.z.string().email(),
             otp: zod_1.z.string().length(6),
+            deviceId: zod_1.z.string().optional(),
+            deviceName: zod_1.z.string().optional(),
+            deviceType: zod_1.z.string().optional(),
+            platform: zod_1.z.string().optional(),
         });
         const parsed = schema.safeParse(req.body);
         if (!parsed.success)
@@ -66,7 +70,8 @@ router.post('/verify-otp', async (req, res) => {
                 message: 'Invalid input',
                 errors: parsed.error, // optional
             });
-        const { email, otp } = parsed.data;
+        const { email, otp, deviceId, deviceName, deviceType, platform } = parsed.data;
+        console.log(deviceId, deviceName, deviceType, platform, "deviceId, deviceName, deviceType, platform");
         // Check in DB
         const record = await Otp_1.default.findOne({ email, otp });
         if (!record)
@@ -91,9 +96,48 @@ router.post('/verify-otp', async (req, res) => {
                 userId: exists._id,
                 token: refreshToken,
             });
+            // 🔥 DEVICE SAVE LOGIC START
+            if (deviceId) {
+                const alreadyExists = exists.devices?.find((d) => d.deviceId === deviceId);
+                if (alreadyExists) {
+                    // update existing device
+                    await user_1.default.updateOne({
+                        _id: exists._id,
+                        "devices.deviceId": deviceId
+                    }, {
+                        $set: {
+                            "devices.$.isOnline": true,
+                            "devices.$.lastSeen": new Date(),
+                            // 🔥 IMPORTANT
+                            "devices.$.deviceName": deviceName,
+                            "devices.$.deviceType": deviceType,
+                            "devices.$.platform": platform
+                        }
+                    });
+                }
+                else {
+                    // add new device
+                    await user_1.default.updateOne({ _id: exists._id }, {
+                        $push: {
+                            devices: {
+                                deviceId,
+                                deviceName,
+                                deviceType,
+                                platform,
+                                isOnline: true,
+                                lastSeen: new Date(),
+                                isTrusted: false
+                            }
+                        }
+                    });
+                }
+            }
+            // 🔥 DEVICE SAVE LOGIC END
+            // fresh user return karo
+            const updatedUser = await user_1.default.findById(exists._id);
             response.AuthenticationToken = accessToken;
             response.refreshToken = refreshToken;
-            response.user = exists;
+            response.user = updatedUser;
         }
         res.status(200).json(response);
     }
@@ -126,6 +170,10 @@ async (req, res) => {
             name: zod_1.z.string().min(2),
             role: zod_1.z.enum(['parent', 'child',]),
             phone: zod_1.z.string().optional(),
+            deviceId: zod_1.z.string().optional(),
+            deviceName: zod_1.z.string().optional(),
+            deviceType: zod_1.z.string().optional(),
+            platform: zod_1.z.string().optional(),
         });
         console.log(req.file, "req.file");
         const parsed = schema.safeParse(req.body);
@@ -136,7 +184,7 @@ async (req, res) => {
                 errors: parsed.error, // optional
             });
         // tempToken,
-        const { name, role, phone, email, gender } = parsed.data;
+        const { name, role, phone, email, gender, deviceId, deviceName, deviceType, platform } = parsed.data;
         let exists = await Otp_1.default.findOne({ email, verified: true }).lean();
         ;
         if (!exists) {
@@ -164,6 +212,19 @@ async (req, res) => {
             gender,
             avatarUrl: profilePhotoUrl,
             inviteCode,
+            devices: deviceId
+                ? [
+                    {
+                        deviceId,
+                        deviceName,
+                        deviceType,
+                        platform,
+                        isOnline: true,
+                        lastSeen: new Date(),
+                        isTrusted: true // first device trusted 🔥
+                    }
+                ]
+                : []
         });
         // Generate final login token
         const accessToken = (0, jwt_js_1.signAccessToken)(user);

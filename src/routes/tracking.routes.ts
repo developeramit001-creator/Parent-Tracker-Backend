@@ -24,6 +24,9 @@ type UpdateLiveBody = {
     batteryLevel?: number;
     gpsEnabled?: boolean;
     event?: string
+    deviceId?: string, deviceName?: string,
+    deviceType?: string,
+    platform?: string
 };
 
 
@@ -32,6 +35,11 @@ type UpdateLiveBody = {
  * POST /api/location/v1/update-live
  */
 
+
+
+
+
+const lastApiHitMap = new Map<string, number>();
 // /tracking/v1
 router.post(
     "/child/update-live",
@@ -39,15 +47,45 @@ router.post(
     async (req: any, res: Response) => {
 
         try {
-            // console.log(req.body, "req.body ======================")
+
+
+
+
+            //  -------------------------------
+
+
+
+            console.log(req.body, "req.body ======================")
 
             const childId = req.user._id as string;
-            const { lat, lng, speed, heading, batteryLevel, gpsEnabled, event } =
-                req.body as UpdateLiveBody;
+            const { lat, lng, speed, heading, batteryLevel, gpsEnabled, event, accuracy,
 
-            { console.log(event, "event") }
+                deviceId,
+                deviceName,
+                deviceType,
+                platform
 
+            } = req.body as UpdateLiveBody;
+            // console.log(lat, lng, speed, accuracy)
 
+            // api call time check  ---- --- start
+            const now = Date.now();
+            const lastTime = lastApiHitMap.get(childId);
+
+            if (lastTime) {
+                const diff = now - lastTime;
+                console.log(`⏱️ API GAP for ${childId}: ${diff / 1000} sec`);
+            } else {
+                console.log(`🆕 First API all for ${childId}`);
+            }
+
+            console.log(`🚀 API HIT AT: ${new Date(now).toLocaleTimeString()}`);
+
+            // update
+            lastApiHitMap.set(childId, now);
+            console.log("helo")
+
+            // api call time check  ---- --- end
 
             // ✅ Validate lat/lng
             if (typeof lat !== "number" || typeof lng !== "number") {
@@ -56,30 +94,66 @@ router.post(
 
             // ✅ Fetch child basic tracking fields
             const child = await User.findById(childId).select(
-                "_id parentId coordinates speed lastLocationAt movementStatus isMoving batteryLevel heading name"
+                "_id parentId coordinates speed lastLocationAt movementStatus isMoving batteryLevel heading name devices"
             );
-            // console.log(child, "child")
+            console.log("child ", child)
+
 
             if (!child) {
                 return res.status(404).json({ message: "Child not found" });
             }
-
+            console.log(child.parentId)
             if (!child.parentId) {
                 return res
                     .status(400)
                     .json({ message: "Child not connected to parent" });
             }
 
+            const sendError = (type: string, message: string) => {
+                io.to(`parent:${child.parentId}`).emit("child-error", {
+                    childId,
+                    deviceId,
+                    type,        // 🔥 important
+                    message,
+                    time: new Date()
+                });
+            };
 
 
+            if (!deviceId) {
+                sendError("DEVICE_NOT_FOUND", "Device not registered");
+                return res.status(400).json({ message: "Device not registered" });
+            }
 
+            // if (deviceId) {
+
+            // device find
+            const device = child?.devices?.find(
+                (d: any) => d.deviceId === deviceId
+            );
+
+
+            if (!device) {
+                sendError("DEVICE_NOT_FOUND", "Device not registered");
+                return res.status(400).json({ message: "Device not registered" });
+            }
+
+            // if (device) {
+            device.isTracking = true
+            // }
+
+            // 🔥 tracking control
+            // child?.devices?.forEach((d: any) => {
+            //     d.isTracking = d.deviceId === deviceId;
+            // });
+            // }
 
 
 
             const prev = {
-                lat: child.coordinates?.lat,
-                lng: child.coordinates?.lng,
-                speed: child.speed || 0,
+                lat: device.coordinates?.lat,
+                lng: device.coordinates?.lng,
+                speed: device.speed || 0,
             };
 
             const next = { lat, lng, speed: speed || 0 };
@@ -90,16 +164,78 @@ router.post(
              * ✅ Update latest location (DB source of truth)
              * Parent ko current info DB se bhi mil sakti hai
              */
-            // console.log(gpsEnabled, "gpsEnable")
-            child.coordinates = { lat, lng };
-            child.speed = speed || 0;
-            child.heading = heading || 0;
-            child.batteryLevel = batteryLevel ?? child.batteryLevel ?? 0;
-            child.gpsEnabled = gpsEnabled;
-            child.isMoving = movement.isMoving;
-            child.movementStatus = movement.movementStatus;
-            child.lastLocationAt = new Date();
-            child.gpsEvent = event
+
+            device.coordinates = { lat, lng };
+            device.speed = speed || 0;
+            device.heading = heading || 0;
+            device.batteryLevel = batteryLevel ?? device.batteryLevel ?? 0;
+            device.gpsEnabled = gpsEnabled;
+            device.isMoving = movement.isMoving;
+            device.movementStatus = movement.movementStatus;
+            device.lastLocationAt = new Date();
+            device.gpsEvent = event
+            if (typeof req.body.internetEnabled === "boolean") {
+                device.internetEnabled = req.body.internetEnabled;
+            }
+
+            let trackingStatus = "ACTIVE";
+
+            // 🔥 1. FLIGHT MODE (HIGHEST PRIORITY)
+            if (gpsEnabled === false && req.body.internetEnabled === false) {
+
+                if (device.trackingStatus !== "FLIGHT_MODE") {
+                    sendError("FLIGHT_MODE", "Child device is in flight mode (GPS & Internet off)");
+                }
+
+                trackingStatus = "FLIGHT_MODE";
+            }
+
+            // 🔴 2. GPS OFF
+            else if (gpsEnabled === false) {
+
+                if (device.trackingStatus !== "GPS_OFF") {
+                    sendError("GPS_OFF", "Child GPS is turned off");
+                }
+
+                trackingStatus = "GPS_OFF";
+            }
+
+            // 🟠 3. NO INTERNET
+            else if (req.body.internetEnabled === false) {
+
+                if (device.trackingStatus !== "NO_INTERNET") {
+                    sendError("NO_INTERNET", "Child has no internet connection");
+                }
+
+                trackingStatus = "NO_INTERNET";
+            }
+
+            // 🟡 4. BATTERY LOW
+            else if (batteryLevel !== undefined && batteryLevel <= 5) {
+
+                if (device.trackingStatus !== "BATTERY_LOW") {
+                    sendError("BATTERY_LOW", "Battery is critically low");
+                }
+
+                trackingStatus = "BATTERY_LOW";
+            }
+
+            // 🟣 5. NO SIGNAL
+            else if (accuracy && accuracy > 100) {
+
+                if (device.trackingStatus !== "NO_SIGNAL") {
+                    sendError("NO_SIGNAL", "Low GPS accuracy / no signal");
+                }
+
+                trackingStatus = "NO_SIGNAL";
+            }
+
+
+            device.trackingStatus = trackingStatus;
+            child.lastActiveDeviceId = deviceId;
+            child.lastLocation = { lat, lng };
+            child.lastLocationTime = new Date();
+            // child.lastOnlineAt = new Date();
             await child.save();
             // console.log(child, "child Check child detial send to backend")
             /**
@@ -109,15 +245,21 @@ router.post(
             io.to(`parent:${child.parentId.toString()}`).emit("child-live-update", {
                 childId: child._id.toString(),
                 parentId: child.parentId.toString(),
-                gpsEnabled: child.gpsEnabled,
-                coordinates: child.coordinates,
-                speed: child.speed,
-                heading: child.heading,
-                batteryLevel: child.batteryLevel,
-                isMoving: child.isMoving,
-                movementStatus: child.movementStatus,
-                lastLocationAt: child.lastLocationAt,
-                gpsEvent: child.gpsEvent
+
+                deviceId,
+                deviceName: device.deviceName,
+                deviceType: device.deviceType,
+                platform: device.platform,
+                gpsEnabled: device.gpsEnabled,
+                coordinates: device.coordinates,
+                speed: device.speed,
+                heading: device.heading,
+                batteryLevel: device.batteryLevel,
+                isMoving: device.isMoving,
+                movementStatus: device.movementStatus,
+                lastLocationAt: device.lastLocationAt,
+                gpsEvent: device.gpsEvent,
+                trackingStatus: device.trackingStatus,
 
             });
 

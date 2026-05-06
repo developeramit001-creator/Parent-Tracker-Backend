@@ -79,6 +79,10 @@ router.post('/verify-otp', async (req, res) => {
     const schema = z.object({
       email: z.string().email(),
       otp: z.string().length(6),
+      deviceId: z.string().optional(),
+      deviceName: z.string().optional(),
+      deviceType: z.string().optional(),
+      platform: z.string().optional(),
     });
 
 
@@ -91,7 +95,9 @@ router.post('/verify-otp', async (req, res) => {
         errors: parsed.error, // optional
       });
 
-    const { email, otp } = parsed.data;
+    const { email, otp, deviceId, deviceName, deviceType, platform } = parsed.data;
+
+    console.log(deviceId, deviceName, deviceType, platform, "deviceId, deviceName, deviceType, platform")
 
     // Check in DB
     const record = await Otp.findOne({ email, otp });
@@ -123,11 +129,69 @@ router.post('/verify-otp', async (req, res) => {
         token: refreshToken,
       });
 
+      // 🔥 DEVICE SAVE LOGIC START
+
+      if (deviceId) {
+
+        const alreadyExists = exists.devices?.find(
+          (d: any) => d.deviceId === deviceId
+        );
+
+        if (alreadyExists) {
+          // update existing device
+          await User.updateOne(
+            {
+              _id: exists._id,
+              "devices.deviceId": deviceId
+            },
+            {
+              $set: {
+                "devices.$.isOnline": true,
+                "devices.$.lastSeen": new Date(),
+                // 🔥 IMPORTANT
+                "devices.$.deviceName": deviceName,
+                "devices.$.deviceType": deviceType,
+                "devices.$.platform": platform
+              }
+            }
+          );
+        } else {
+          // add new device
+          await User.updateOne(
+            { _id: exists._id },
+            {
+              $push: {
+                devices: {
+                  deviceId,
+                  deviceName,
+                  deviceType,
+                  platform,
+                  isOnline: true,
+                  lastSeen: new Date(),
+                  isTrusted: false
+                }
+
+
+
+
+
+
+
+              }
+            }
+          );
+        }
+
+      }
+
+      // 🔥 DEVICE SAVE LOGIC END
+
+      // fresh user return karo
+      const updatedUser = await User.findById(exists._id);
 
       response.AuthenticationToken = accessToken;
       response.refreshToken = refreshToken;
-      response.user = exists;
-
+      response.user = updatedUser;
 
     }
 
@@ -168,6 +232,11 @@ router.post('/complete-profile',
         name: z.string().min(2),
         role: z.enum(['parent', 'child',]),
         phone: z.string().optional(),
+
+        deviceId: z.string().optional(),
+        deviceName: z.string().optional(),
+        deviceType: z.string().optional(),
+        platform: z.string().optional(),
       });
 
 
@@ -183,7 +252,17 @@ router.post('/complete-profile',
         errors: parsed.error, // optional
       });
       // tempToken,
-      const { name, role, phone, email, gender } = parsed.data;
+      const {
+        name,
+        role,
+        phone,
+        email,
+        gender,
+        deviceId,
+        deviceName,
+        deviceType,
+        platform
+      } = parsed.data;
 
 
       let exists = await Otp.findOne({ email, verified: true }).lean();;
@@ -225,6 +304,20 @@ router.post('/complete-profile',
         gender,
         avatarUrl: profilePhotoUrl,
         inviteCode,
+
+        devices: deviceId
+          ? [
+            {
+              deviceId,
+              deviceName,
+              deviceType,
+              platform,
+              isOnline: true,
+              lastSeen: new Date(),
+              isTrusted: true // first device trusted 🔥
+            }
+          ]
+          : []
       });
 
 

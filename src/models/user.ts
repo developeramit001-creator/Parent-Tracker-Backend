@@ -4,113 +4,132 @@ import mongoose, { Document, Schema, Types } from "mongoose";
 export type UserRole = "parent" | "child";
 export type MovementStatus = "STOPPED" | "MOVING" | "RUNNING";
 
-/**
- * ✅ User document interface
- */
 export interface IUser extends Document {
   _id: string;
 
   name: string;
   email: string;
-  phone?: string;
-
   role: UserRole;
 
-  avatarUrl?: string;
-  gender?: string;
-
-  // ✅ Parent-only
-  inviteCode?: string;
+  parentId?: Types.ObjectId;
   children?: Types.ObjectId[];
 
-  // ✅ Child-only
-  parentId?: Types.ObjectId;
-
-  // ✅ Live tracking fields
-  coordinates?: {
+  // ================================
+  // 🟢 CHILD SUMMARY (ONLY 2 THINGS)
+  // ================================
+  lastActiveDeviceId?: string;   // 🔥 konsa device active hai
+  lastLocation?: {
     lat?: number;
     lng?: number;
   };
+  lastLocationTime?: Date;
 
-  speed?: number; // meters/second
-  heading?: number; // degrees
-  batteryLevel?: number; // 0-100
-  isMoving?: boolean;
-  movementStatus?: MovementStatus;
-  lastLocationAt?: Date;
+  // ================================
+  // 📱 DEVICES (REAL DATA 🔥)
+  // ================================
+  devices?: {
+    deviceId: string;
+    deviceName?: string;
+    deviceType?: string;
+    platform?: string;
+    // status
+    isOnline?: boolean;
+    isTracking?: boolean;
 
-  // ✅ Notifications
+    // timestamps
+    lastSeen?: Date;
+    lastLocationAt?: Date;
+
+    // location
+    coordinates?: {
+      lat?: number;
+      lng?: number;
+    };
+
+    // movement
+    speed?: number;
+    heading?: number;
+    movementStatus?: MovementStatus;
+    isMoving?: boolean;
+    // system
+    gpsEnabled?: boolean;
+    internetEnabled?: boolean;
+    batteryLevel?: number;
+
+    gpsEvent?: string;
+    trackingStatus?: string
+  }[];
+
   fcmTokens?: string[];
-
-  // ✅ Admin
   isBlocked?: boolean;
-  gpsEnabled?: boolean;
-  gpsEvent?: string;
 }
 
 const UserSchema = new Schema<IUser>(
   {
-    // ✅ Basic info
     name: { type: String, required: true },
-
     email: { type: String, required: true, unique: true },
-    phone: { type: String },
+    role: { type: String, enum: ["parent", "child"], required: true },
 
-    role: {
-      type: String,
-      enum: ["parent", "child"],
-      required: true,
-    },
-
-    gender: { type: String },
-    avatarUrl: { type: String },
-
-    // ✅ Parent fields
-    inviteCode: {
-      type: String,
-      unique: true,
-      sparse: true, // allow null/undefined
-    },
-
-    children: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "User",
-      },
-    ],
-
-    // ✅ Child fields
     parentId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       index: true,
     },
 
-    // ✅ Live tracking fields (child)
-    coordinates: {
+    children: [{ type: Schema.Types.ObjectId, ref: "User" }],
+
+    // ================================
+    // 🟢 CHILD SUMMARY
+    // ================================
+    lastActiveDeviceId: { type: String },
+
+    lastLocation: {
       lat: { type: Number },
       lng: { type: Number },
     },
 
-    speed: { type: Number, }, // m/s
-    heading: { type: Number, }, // degrees
-    batteryLevel: { type: Number, }, // 0-100
+    // ================================
+    // 📱 DEVICES
+    // ================================
+    devices: [
+      {
+        deviceId: { type: String },
+        deviceName: { type: String },
+        deviceType: { type: String },
+        platform: { type: String },
 
-    isMoving: { type: Boolean },
 
-    movementStatus: {
-      type: String,
-      enum: ["STOPPED", "MOVING", "RUNNING"],
+        isOnline: { type: Boolean, default: true }, // update only login and logout
+        isTracking: { type: Boolean, default: false },
 
-    },
-    gpsEnabled: { type: Boolean },
-    lastLocationAt: { type: Date },
+        lastSeen: { type: Date, default: Date.now }, //update only logout and login
+        lastLocationAt: { type: Date },
 
-    // ✅ Block + FCM
-    isBlocked: { type: Boolean, default: false },
+        coordinates: {
+          lat: { type: Number },
+          lng: { type: Number },
+        },
+
+        speed: { type: Number },
+        heading: { type: Number },
+
+        movementStatus: {
+          type: String,
+          enum: ["STOPPED", "MOVING", "RUNNING"],
+        },
+
+        gpsEnabled: { type: Boolean, default: false },
+        internetEnabled: { type: Boolean, default: false },
+
+        batteryLevel: { type: Number },
+
+        gpsEvent: { type: String },
+        trackingStatus: { type: String },
+      },
+    ],
 
     fcmTokens: { type: [String], default: [] },
-    gpsEvent: { type: String }
+    isBlocked: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
